@@ -1,34 +1,57 @@
-<script runat=server>
-Platform.Load("Core", "1");
-//Data Extension to log API Calls
-var logDE = "[EXTERNAL KEY HERE]";
-var log = DataExtension.Init(logDE);
+<script runat="server">
+Platform.Load("Core", "1.1.1");
 
-//AUTHENTICATE
-var url = '[BASE URI]/v2/token'; 
-var contentType = 'application/json'; 
-var payload = '{"grant_type": "client_credentials","client_id": "[CLIENT ID HERE]","client_secret": "[CLIENT SECRET HERE]","account_id":"[MID HERE]"}'; 
+var AUTH_URL      = "[BASE URI]";
+var CLIENT_ID     = "[CLIENT ID HERE]";
+var CLIENT_SECRET = "[CLIENT SECRET HERE]";
+var ACCOUNT_ID    = "[MID HERE]";
+var LOG_DE_KEY    = "[EXTERNAL KEY HERE]";
+var LIST_KEY      = "[PUT EXTERNALKEY HERE]";
 
-var accessTokenResult = HTTP.Post(url, contentType, payload); 
-var accessToken = Platform.Function.ParseJSON(accessTokenResult["Response"][0]).access_token;
+function writeLog(message) {
+    var logDE = DataExtension.Init(LOG_DE_KEY);
+    logDE.Rows.Add({ Message: message });
+}
 
-if(accessToken !='')
-//EXECUTE
-{
-	try {
-		//PUT THE EXTERNAL KEY OF THE DATA EXTENSION TO BE DELETED
-		var deleteUrl = '[BASE URI]/contacts/v1/contacts/actions/delete?type=listReference';
-		var payload1 = '{"deleteOperationType": "ContactAndAttributes","targetList": {"listType": {"listTypeID": 3},"listKey": "[PUT EXTERNALKEY HERE]"},"deleteListWhenCompleted": false,"deleteListContentsWhenCompleted": false}';
-		var headerNames = ["Authorization"];
-		var s1="Bearer ";
-		var headerValues = [s1.concat(accessToken)];
-		var result = HTTP.Post(deleteUrl, contentType, payload1, headerNames, headerValues);
-		result = Stringify(result).replace(/[\n\r]/g, '');
-		log.Rows.Add({"Message": "result: " + result});
-	} 
-	catch (e) {
-		e = Stringify(e).replace(/[\n\r]/g, '')
-		log.Rows.Add({"Message": "error: " + e});
-	}
+function getToken() {
+    var payload = {
+        grant_type:    "client_credentials",
+        client_id:     CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        account_id:    ACCOUNT_ID
+    };
+
+    var result = HTTP.Post(AUTH_URL + "/v2/token", "application/json", Stringify(payload));
+    var parsed = Platform.Function.ParseJSON(result.Response[0]);
+
+    return parsed.access_token;
+}
+
+function deleteContactsByList(accessToken) {
+    var deleteUrl    = AUTH_URL + "/contacts/v1/contacts/actions/delete?type=listReference";
+    var headerNames  = ["Authorization"];
+    var headerValues = ["Bearer " + accessToken];
+    var payload = {
+        deleteOperationType:             "ContactAndAttributes",
+        targetList: {
+            listType: { listTypeID: 3 },
+            listKey:  LIST_KEY
+        },
+        deleteListWhenCompleted:         false,
+        deleteListContentsWhenCompleted: false
+    };
+
+    var result = HTTP.Post(deleteUrl, "application/json", Stringify(payload), headerNames, headerValues);
+    writeLog("result: " + Stringify(result).replace(/[\n\r]/g, ""));
+}
+
+try {
+    var accessToken = getToken();
+
+    if (accessToken) {
+        deleteContactsByList(accessToken);
+    }
+} catch (e) {
+    writeLog("error: " + Stringify(e).replace(/[\n\r]/g, ""));
 }
 </script>
